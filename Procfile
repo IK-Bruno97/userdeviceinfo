@@ -1,0 +1,1 @@
+web: gunicorn UserDeviceInfo.wsgi --log-file -
