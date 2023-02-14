@@ -1,5 +1,6 @@
 asgiref==3.5.2
 Django==4.1.2
+djangorestframework==3.13.1
 django-user-agents==0.4.0
 geoip2==4.6.0
 geopy==2.3.0
