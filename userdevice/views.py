@@ -12,25 +12,12 @@ from django.contrib.auth.decorators import login_required
 import json
 from django.core.mail import send_mail
 from django.conf import settings
+from .utils import get_ip_address
+#from django.contrib.gis.utils import GeoIP
+
+import socket
 
 # Create your views here.
-
-#function to get user ip address
-def get_ip():
-    response = requests.get('https://api64.ipify.org?format=json').json()
-    return response['ip']
-
-#function to get user basic location info using ip address
-def get_location():
-    ip_addr = get_ip()
-    response = requests.get(f'https://ipapi.co/{ip_addr}/json/').json()
-    location_data = {
-        'ip': ip_addr,
-        'city': response.get('city'),
-        'region': response.get('region'),
-        'country': response.get('country_name')
-    }
-    return location_data
 
 '''class UserAPIView(LoginRequiredMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
     #queryset = DeviceInfo.objects.all()
@@ -84,43 +71,66 @@ class LoginView(LoginView):
 @login_required
 def home(request):
     #get user ip info
-    user_info = get_location()
-    print(user_info)
+    ip = get_ip_address(request)
+    print(ip)
     user = request.user
+        
+    device_type = ""
 
-    #get device type from javascript
-    if request.method == 'POST':
-        #global data
-        data = json.loads(request.body.decode('utf-8'))
-        print(data['device_type'])
+    browser_type = ""
+    browser_version = ""
+    os_type = ""
+    os_version = ""
+    
+    browser_type = request.user_agent.browser.family
+    browser_version = request.user_agent.browser.version_string
+    os_type = request.user_agent.os.family
+    os_version = request.user_agent.os.version_string
 
-        #check if user already has info stored and verify if it's same with current info
-        try:
-            exist = DeviceInfo.objects.get(user=user)
-            if str(exist.ip_add) != str(get_ip()) or str(exist.device) != str(data['device_type']):
-                print("NOTICED UNKNOWN LOCATION!")
-                subject = 'Security Notice.'
-                message = f'We have detected suspicious login attempt from an unrecognized ip location {get_location()}. If it was not you, click on the link to secure your account.'
-                to_email = exist.user.email
-                from_email = settings.DEFAULT_FROM_EMAIL
-                print(to_email, from_email)
+    if request.user_agent.is_mobile:
+        device_type = "Mobile"
+    if request.user_agent.is_tablet:
+        device_type = "Tablet"
+    if request.user_agent.is_pc:
+        device_type = "PC"
 
-                send_mail(
-                    subject,
-                    message,
-                    from_email,
-                    [to_email],
-                    fail_silently=False
-                )
+    context = {
+        'user': user,
+        'ip': ip,
+        'device_type': device_type,
+        'browser_type': browser_type,
+        'browser_version': browser_version,
+        'os_type': os_type,
+        'os_version': os_version,
+    }
 
-        except DeviceInfo.DoesNotExist:
-            #save current info to model
-            deviceinfo = DeviceInfo.objects.create(user=user, device=data['device_type'], ip_add=get_ip())
-            deviceinfo.save()
-        return render(request, 'home.html')
+    #check if user already has info stored and verify if it's same with current info
+    try:
+        exist = DeviceInfo.objects.get(user=user)
+        if str(exist.ip_add) != str(ip) or str(exist.device) != str(device_type):
+            print("NOTICED UNKNOWN LOCATION!")
+            subject = 'Security Notice.'
+            message = f'We have detected suspicious login attempt from an unrecognized ip location {ip} {device_type} {os_type} {browser_version}. If it was not you, click on the link to secure your account.'
+            to_email = exist.user.email
+            from_email = settings.DEFAULT_FROM_EMAIL
+            print(to_email, from_email)
 
-    return render(request, 'home.html', {'userinfo': user_info, 'user': user,})
+            send_mail(
+                subject,
+                message,
+                from_email,
+                [to_email],
+                fail_silently=False
+            )
 
+    except DeviceInfo.DoesNotExist:
+        #save current info to model
+        device  = device_type +" "+ os_type
+        deviceinfo = DeviceInfo.objects.create(user=user, device=device, ip_add=ip)
+        deviceinfo.save()
+        return render(request, 'home.html', context)
+
+    return render(request, 'home.html', context)
 
 
 class LogoutView(View):
