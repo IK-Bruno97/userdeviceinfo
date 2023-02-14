@@ -13,30 +13,9 @@ import json
 from django.core.mail import send_mail
 from django.conf import settings
 from .utils import get_ip_address
-#from django.contrib.gis.utils import GeoIP
-
-import socket
+from django.contrib.gis.geoip2 import GeoIP2
 
 # Create your views here.
-
-'''class UserAPIView(LoginRequiredMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin, generics.GenericAPIView):
-    #queryset = DeviceInfo.objects.all()
-    serializer_class = UserSerializer
-    template_name = 'blog/post_new.html'
-    #permission_classes = [IsAuthenticated]
-    lookup_fields = ['request.user']
-
-
-    def get_queryset(self, request):
-        return DeviceInfo.objects.get(user=request.user)
-
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
-
-    def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)'''
-
-
 class RegisterPage(FormView):
     template_name = 'register.html'
     form_class = UserRegistrationForm
@@ -58,7 +37,6 @@ class RegisterPage(FormView):
         return super(RegisterPage, self).get(*args, **kwargs)
 
 
-
 class LoginView(LoginView):
     template_name = 'login.html'
     redirect_authenticated_user = True
@@ -74,7 +52,14 @@ def home(request):
     ip = get_ip_address(request)
     print(ip)
     user = request.user
-        
+    
+    #get location with geoIP
+    g = GeoIP2()
+    location = g.city(ip)
+    location_country = location["country_name"]
+    location_city = location["city"]
+
+    #get other device information with user_agent
     device_type = ""
 
     browser_type = ""
@@ -102,6 +87,8 @@ def home(request):
         'browser_version': browser_version,
         'os_type': os_type,
         'os_version': os_version,
+        'location_country': location_country,
+        'location_city': location_city,
     }
 
     #check if user already has info stored and verify if it's same with current info
@@ -110,7 +97,7 @@ def home(request):
         if str(exist.ip_add) != str(ip) or str(exist.device) != str(device_type):
             print("NOTICED UNKNOWN LOCATION!")
             subject = 'Security Notice.'
-            message = f'We have detected suspicious login attempt from an unrecognized ip location {ip} {device_type} {os_type} {browser_version}. If it was not you, click on the link to secure your account.'
+            message = f'We have detected suspicious login attempt from an unrecognized ip location {location_country} {device_type} {os_type} {browser_version}. If it was not you, click on the link to secure your account.'
             to_email = exist.user.email
             from_email = settings.DEFAULT_FROM_EMAIL
             print(to_email, from_email)
