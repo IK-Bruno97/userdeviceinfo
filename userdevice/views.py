@@ -15,7 +15,7 @@ from django.conf import settings
 from .utils import get_ip_address
 from django.contrib.gis.geoip2 import GeoIP2
 
-# Create your views here.
+# Create your views here..
 class RegisterPage(FormView):
     template_name = 'register.html'
     form_class = UserRegistrationForm
